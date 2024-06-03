@@ -70,6 +70,30 @@ def text_in_screen(path="", printResult=False):
                     return False
 
 
+def nopower(path="", printResult=False):
+    image = screenshot(region=POSITIONS["fulfill"])  # 使用pyautogui进行截图操作
+    image = np.array(image)
+
+    ocr = PaddleOCR(use_angle_cls=True, lang="ch")  # need to run only once to download and load model into memory
+
+    result = ocr.ocr(image, cls=True)
+    if result is None:
+        return False
+
+    if printResult is True:
+        for line in result:
+            if line is None:
+                continue
+            for word in line:
+                if word is None:
+                    continue
+                text = word[1][0]
+                if "开拓力补充" in text:
+                    return True
+                else:
+                    return False
+
+
 def start():
     windows = gw.getWindowsWithTitle("崩坏：星穹铁道")
     if windows:  # 如果找到了窗口
@@ -78,17 +102,21 @@ def start():
         print("未找到窗口")
         print_to_gui("未找到窗口,请手动打开游戏")
         return
-    time.sleep(2)
+    time.sleep(1)
     while True:
         if text_in_screen(printResult=True):
             print("Success")
-            print_to_gui("Success")
+            print_to_gui("找到目标，再来一遍")
             pyautogui.moveTo(*POSITIONS["again"])
             pyautogui.click()
             time.sleep(1)
         else:
+            if nopower(printResult=True):
+                print("No power")
+                print_to_gui("体力不足，程序已停止")
+                stop_thread(None)
             print("not found")
-            print_to_gui("not found")
+            print_to_gui("未找到目标")
             time.sleep(10)
 
 
@@ -135,9 +163,9 @@ POSITIONS = {
     "auto": (1762, 46),
     "againtext": (1200, 910, 110, 60),
     "again": (1200, 930),
+    "fulfill": (870, 320, 200, 50),
     # 添加更多坐标...
 }
-
 
 if __name__ == '__main__':
     root = tk.Tk()
