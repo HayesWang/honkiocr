@@ -1,9 +1,15 @@
+import sys
 import time
-
-import numpy
 import os
-
 import pyautogui
+from pynput import keyboard
+import tkinter as tk
+import threading
+import pygetwindow as gw
+
+pgup = keyboard.Key.page_up
+pgdn = keyboard.Key.page_down
+esc = keyboard.Key.delete
 
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 from pyautogui import *
@@ -12,10 +18,15 @@ import numpy as np
 from paddleocr import PaddleOCR, draw_ocr
 
 
+class TextRedirector(object):
+    def __init__(self, widget):
+        self.widget = widget
+
+    def write(self, str):
+        self.widget.insert(tk.END, str)
+        self.widget.see(tk.END)
 
 
-class Region:
-    again = (1200, 910, 1310, 970)
 def get_curtime(time_format="%Y-%m-%d %H:%M:%S"):
     curTime = time.localtime()
     curTime = time.strftime(time_format, curTime)
@@ -33,7 +44,7 @@ def text_in_screen(path="", printResult=False):
 
     # 图片路径为空就默认获取屏幕截图
     if image == "":
-        image = screenshot(region=(1200, 910, 110, 60))  # 使用pyautogui进行截图操作
+        image = screenshot(region=POSITIONS["againtext"])  # 使用pyautogui进行截图操作
         image = np.array(image)
     else:
         # 不为空就打开
@@ -58,14 +69,94 @@ def text_in_screen(path="", printResult=False):
                 else:
                     return False
 
-if __name__ == '__main__':
+
+def start():
+    windows = gw.getWindowsWithTitle("崩坏：星穹铁道")
+    if windows:  # 如果找到了窗口
+        windows[0].activate()  # 激活第一个窗口
+    else:
+        print("未找到窗口")
+        print_to_gui("未找到窗口,请手动打开游戏")
+        return
     time.sleep(2)
     while True:
         if text_in_screen(printResult=True):
             print("Success")
-            pyautogui.moveTo(1240,930, duration=0.25)
+            print_to_gui("Success")
+            pyautogui.moveTo(*POSITIONS["again"])
             pyautogui.click()
             time.sleep(1)
         else:
-            time.sleep(20)
             print("not found")
+            print_to_gui("not found")
+            time.sleep(10)
+
+
+def print_to_gui(message, emphasis=False):
+    timestamp = get_curtime()
+    message_with_timestamp = f"{timestamp}: {message}\n"
+    if emphasis:
+        tag = "emphasis"
+    else:
+        tag = "blue"
+    text.insert(tk.END, message_with_timestamp, tag)
+    text.see(tk.END)
+
+
+def on_press(key):
+    if key == pgup:
+        start_thread(None)
+    elif key == pgdn:
+        stop_thread(None)
+    elif key == esc:
+        root.destroy()
+        sys.exit()
+
+
+def start_thread(event):
+    global thread
+    thread = threading.Thread(target=start)
+    thread.daemon = True
+    thread.start()
+    print_to_gui("The program has started!", emphasis=True)
+
+
+def stop_thread(event):
+    if thread.is_alive():
+        # Terminate the thread
+        # Note: This is generally not recommended, but we don't have other options here
+        # as Python doesn't support killing threads directly.
+        import ctypes
+        ctypes.pythonapi.PyThreadState_SetAsyncExc(ctypes.c_long(thread.ident), ctypes.py_object(SystemExit))
+        print_to_gui("The program has stopped!", emphasis=True)
+
+
+POSITIONS = {
+    "auto": (1762, 46),
+    "againtext": (1200, 910, 110, 60),
+    "again": (1200, 930),
+    # 添加更多坐标...
+}
+
+
+if __name__ == '__main__':
+    root = tk.Tk()
+    screen_height = root.winfo_screenheight()  # 获取屏幕高度
+    window_height = 150  # 窗口高度
+    y = (screen_height - window_height) // 2  # 计算y坐标
+    root.geometry(f'400x{window_height}+0+{y}')  # 设置窗口大小和位置
+    root.attributes('-alpha', 0.8)  # 设置透明度为80%
+    root.attributes('-topmost', True)
+    root.overrideredirect(True)  # 创建无边框窗口
+    # 添加一个按钮
+    listener = keyboard.Listener(on_press=on_press)
+    listener.start()
+
+    text = tk.Text(root)
+    text.pack()
+
+    text.tag_configure("red", foreground="red", font=("Helvetica", 12))
+    text.tag_configure("blue", foreground="blue", font=("Helvetica", 12))
+    text.tag_configure("emphasis", foreground="red", font=("Helvetica", 15), underline=True)
+
+    root.mainloop()
